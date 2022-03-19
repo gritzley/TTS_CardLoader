@@ -1,0 +1,178 @@
+CARD_BACK_URL = "https://static.wikia.nocookie.net/mtgsalvation_gamepedia/images/f/f8/Magic_card_back.jpg/revision/latest?cb=20140813141013"
+SCRYFALL_BASE_URL = "https://api.scryfall.com/"
+-- lua does not support regex, as regex is larger than lua itself. It has its own simpler (and uglier) pattern matcher.
+-- it even supports capture groups. just ignore how ugly it looks
+SET_ID_PATTERN = "([%w%d][%w%d][%w%d]+)"
+COLLECTOR_ID_PATTERN = "(%d%d?%d?)"
+CARDNAME_PATTERN = "([%w%s%p'\"%+%_/]+)"
+MTGA_STRING_PATTERN = "(%d+).*%("..SET_ID_PATTERN.."%)%s"..COLLECTOR_ID_PATTERN
+STRING_PATTERN_WITH_ADDITIONAL_DATA = "(%d+)%s"..CARDNAME_PATTERN.."%s<(.+)>%s%["..SET_ID_PATTERN.."%]"
+STRING_PATTERN = "(%d+)%s"..CARDNAME_PATTERN.."%s%["..SET_ID_PATTERN.."%]"
+
+MAINDECK_POSITION = {0, 3, 0}
+SIDEBOARD_POSITION = {10, 3, 0}
+COMMANDER_POSITION = {10, 3, 10}
+COMPANION_POSITION = {0, 3, 10}
+
+SCRYFALL_DATA_MAX_BATCH_SIZE = 75
+
+USER_DECKLIST = ""
+function onInput(_, text)
+    USER_DECKLIST = text
+end
+
+function buttonOnClick()
+    local data = createAPISearchData(USER_DECKLIST)
+    createCardsFromData(data)
+end
+
+function createAPISearchData(decklist)
+    local target = MAINDECK_POSITION
+    local data = {}
+
+    for line in decklist:gmatch("(.-)\n") do
+
+        local card = {}
+        card.target = target
+
+        if (line:match(STRING_PATTERN_WITH_ADDITIONAL_DATA)) then
+            _, _, amount, name, additionalData, set = line:find(STRING_PATTERN_WITH_ADDITIONAL_DATA)
+
+            card.amount = amount
+
+            if (additionalData:match(COLLECTOR_ID_PATTERN)) then
+                card.set = string.lower(set)
+                card.collector_number = additionalData
+            else
+                card.name = name:gsub("/.*","")
+                card.set = string.lower(set)
+            end
+
+        elseif (line:match(STRING_PATTERN)) then
+            _, _, amount, name, set = line:find(STRING_PATTERN)
+
+            card.amount = amount
+            card.name = name:gsub("/.*","")
+            card.set = string.lower(set)
+        else
+            target = SIDEBOARD_POSITION
+            skip = true
+        end
+
+        if (skip) then
+            skip = false
+        else
+
+            table.insert(data, card)
+
+        end
+    end
+
+    return data
+end
+
+function createAPISearchData_MTGA(decklist)
+
+    local target = MAINDECK_POSITION
+    local targetLookup = {
+        Deck = MAINDECK_POSITION,
+        Sideboard = SIDEBOARD_POSITION,
+        Commander = COMMANDER_POSITION,
+        Companion = COMPANION_POSITION
+    }
+    local data = {}
+
+    for line in decklist:gmatch("[^\n]+") do
+
+        -- set the target to the correct zone
+        if (targetLookup[line:gsub("%s+", "")] ~= nil) then
+            target = targetLookup[line:gsub("%s+", "")]
+        end
+
+        if (line:match(MTGA_STRING_PATTERN)) then
+
+            -- MTGA puts companions into the sideboard and a special companion slot.
+            -- If we find the Companion in the sideboard we skip it.
+            if (target == COMPANION_POSITION) then
+                Companion = line
+            elseif (Companion == line) then
+                skip = true
+            end
+
+            if (skip) then
+                skip = false
+            else
+                _, _, amount, setID, collectorsID = line:find(MTGA_STRING_PATTERN)
+
+                -- MTGA uses DAR as a code for DOM. This is likely because Dominaria was the first set on arena and DAR might signify "Dominaria Arena"
+                -- Some sites use DAR aswell so this might need to
+                if (collectorsID == "DAR") then collectorsID = "DOM" end
+
+                table.insert(data, {
+                    amount = amount,
+                    target = target,
+                    set = setID,
+                    collector_number = collectorsID
+                })
+
+            end
+
+        end
+    end
+
+    return data
+end
+
+function createCardsFromData(data)
+    local body = JSON.encode({
+        identifiers = data
+    })
+
+    local headers = {
+        ["Content-Type"] = "application/json"
+    }
+    WebRequest.custom(SCRYFALL_BASE_URL.."/cards/collection", "POST", true, body, headers, function(request)
+
+        -- standard error handling
+        if request.is_error then
+            print("Request failed: " .. request.error)
+            return
+        end
+
+        -- dealing with non-json data
+        local contentType = request.getResponseHeader("Content-Type") or ""
+        if contentType ~= "application/json" and not contentType:match("^application/json;") then
+            print("Unexpected response from Scryfall.")
+            return
+        end
+
+        local cards = JSON.decode(request.text).data
+
+        -- go through received data
+        for i, value in ipairs(cards) do
+            for j=1, data[i].amount do createCard(value, data[i].target) end
+        end
+    end)
+end
+
+function createCard(data, target)
+    local card = spawnObject({
+        type = "CardCustom",
+        position = target,
+        scale = {2, 2, 2}
+    })
+
+    if (data.image_uris ~= nil) then
+        card.setCustomObject({
+            face = data.image_uris.large,
+            back = CARD_BACK_URL
+        })
+    else
+        card.setCustomObject({
+            face = data.card_faces[1].image_uris.large,
+            back = CARD_BACK_URL
+        })
+    end
+
+    card.setName(data.name)
+end
