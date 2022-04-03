@@ -9,33 +9,38 @@ MTGA_STRING_PATTERN = "(%d+).*%("..SET_ID_PATTERN.."%)%s"..COLLECTOR_ID_PATTERN
 STRING_PATTERN_WITH_ADDITIONAL_DATA = "(%d+)%s"..CARDNAME_PATTERN.."%s<(.+)>%s%["..SET_ID_PATTERN.."%]"
 STRING_PATTERN = "(%d+)%s"..CARDNAME_PATTERN.."%s%["..SET_ID_PATTERN.."%]"
 
-MAINDECK_POSITION = {0, 3, 0}
-SIDEBOARD_POSITION = {10, 3, 0}
-COMMANDER_POSITION = {10, 3, 10}
-COMPANION_POSITION = {0, 3, 10}
+MAINDECK_POSITION = {-1, 1, -1}
+SIDEBOARD_POSITION = {1, 1, -1}
+COMMANDER_POSITION = {1, 1, 1}
+COMPANION_POSITION = {-1, 1, 1}
 
 SCRYFALL_DATA_MAX_BATCH_SIZE = 75
 
-USER_DECKLIST = ""
-function onInput(_, text)
-    USER_DECKLIST = text
-end
-
-function buttonOnClick()
-    local data = createAPISearchData(USER_DECKLIST)
-    createCardsFromData(data)
+function magiclines(s)
+        if s:sub(-1)~="\n" then s=s.."\n" end
+        return s:gmatch("(.-)\n")
 end
 
 function createAPISearchData(decklist)
     local target = MAINDECK_POSITION
+    local targetLookup = {
+        Deck = MAINDECK_POSITION,
+        Sideboard = SIDEBOARD_POSITION,
+        Commander = COMMANDER_POSITION,
+        Companion = COMPANION_POSITION
+    }
     local data = {}
+    local Companion = nil
 
-    for line in decklist:gmatch("(.-)\n") do
+    for line in magiclines(decklist) do
 
         local card = {}
         card.target = target
 
-        if (line:match(STRING_PATTERN_WITH_ADDITIONAL_DATA)) then
+        -- e.G. 3 Island <251> [THB]
+        -- the additional data between the <> brackets can contain a collector_number in which case we prefer to use that over the name as it is
+        -- more accurate when fetching lands
+        if line:match(STRING_PATTERN_WITH_ADDITIONAL_DATA) then
             _, _, amount, name, additionalData, set = line:find(STRING_PATTERN_WITH_ADDITIONAL_DATA)
 
             card.amount = amount
@@ -48,49 +53,19 @@ function createAPISearchData(decklist)
                 card.set = string.lower(set)
             end
 
-        elseif (line:match(STRING_PATTERN)) then
+        -- e.G. 4 Archmage's Charm [MH1] (F)
+        -- This is just straight up amount, name and set. The information in round brackets at the end can be ignored (F is for foil)
+        elseif line:match(STRING_PATTERN) then
             _, _, amount, name, set = line:find(STRING_PATTERN)
 
             card.amount = amount
             card.name = name:gsub("/.*","")
             card.set = string.lower(set)
-        else
-            target = SIDEBOARD_POSITION
-            skip = true
-        end
 
-        if (skip) then
-            skip = false
-        else
-
-            table.insert(data, card)
-
-        end
-    end
-
-    return data
-end
-
-function createAPISearchData_MTGA(decklist)
-
-    local target = MAINDECK_POSITION
-    local targetLookup = {
-        Deck = MAINDECK_POSITION,
-        Sideboard = SIDEBOARD_POSITION,
-        Commander = COMMANDER_POSITION,
-        Companion = COMPANION_POSITION
-    }
-    local data = {}
-
-    for line in decklist:gmatch("[^\n]+") do
-
-        -- set the target to the correct zone
-        if (targetLookup[line:gsub("%s+", "")] ~= nil) then
-            target = targetLookup[line:gsub("%s+", "")]
-        end
-
-        if (line:match(MTGA_STRING_PATTERN)) then
-
+        -- e.G. 4 Bard Class (AFR) 217
+        -- MTGA uses a slightly different format so we need to account for that.
+        -- as MTGA always provides a cllector_number, we always use that and ignore the name.
+        elseif line:match(MTGA_STRING_PATTERN) then
             -- MTGA puts companions into the sideboard and a special companion slot.
             -- If we find the Companion in the sideboard we skip it.
             if (target == COMPANION_POSITION) then
@@ -99,23 +74,28 @@ function createAPISearchData_MTGA(decklist)
                 skip = true
             end
 
-            if (skip) then
-                skip = false
-            else
-                _, _, amount, setID, collectorsID = line:find(MTGA_STRING_PATTERN)
+            _, _, amount, setID, collectorsID = line:find(MTGA_STRING_PATTERN)
 
-                -- MTGA uses DAR as a code for DOM. This is likely because Dominaria was the first set on arena and DAR might signify "Dominaria Arena"
-                -- Some sites use DAR aswell so this might need to
-                if (collectorsID == "DAR") then collectorsID = "DOM" end
+            -- MTGA uses DAR as a code for DOM. This is likely because Dominaria was the first set on arena and DAR might signify "Dominaria Arena"
+            -- Some sites use DAR aswell so this might need to
+            if (collectorsID == "DAR") then collectorsID = "DOM" end
 
-                table.insert(data, {
-                    amount = amount,
-                    target = target,
-                    set = setID,
-                    collector_number = collectorsID
-                })
+            card.amount = amount
+            card.set = setID
+            card.collector_number = collectorsID
 
-            end
+        else
+            -- if the line specifies a position, we take it. if not we default to the sideboard
+            -- this is because a lot of formats simply use an empty line to signify the sideboard
+            target = targetLookup[line:gsub("%s+", "")] or SIDEBOARD_POSITION
+            skip = true
+        end
+
+        if (skip) then
+            skip = false
+        else
+
+            table.insert(data, card)
 
         end
     end
@@ -156,13 +136,18 @@ function createCardsFromData(data)
 end
 
 function createCard(data, target)
-    local card = spawnObject({
+    local rotation = self.getRotation()
+    rotation[2] = rotation[2] + 180
+    rotation[3] = rotation[3] + 180
+    local cardData = {
         type = "CardCustom",
-        position = target,
-        scale = {2, 2, 2}
-    })
+        position = self.positionToWorld(target),
+        scale = {2, 2, 2},
+        rotation = rotation
+    }
+    local card = spawnObject(cardData)
 
-    if (data.image_uris ~= nil) then
+    if data.image_uris ~= nil then
         card.setCustomObject({
             face = data.image_uris.large,
             back = CARD_BACK_URL
@@ -172,6 +157,7 @@ function createCard(data, target)
             face = data.card_faces[1].image_uris.large,
             back = CARD_BACK_URL
         })
+
     end
 
     card.setName(data.name)
