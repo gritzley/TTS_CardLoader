@@ -16,9 +16,71 @@ COMPANION_POSITION = {-1, 1, 1}
 
 SCRYFALL_DATA_MAX_BATCH_SIZE = 75
 
-function magiclines(s)
-        if s:sub(-1)~="\n" then s=s.."\n" end
-        return s:gmatch("(.-)\n")
+COMMAND_PATTERN = "^%$(%w+)%s?(.*)"
+COMMAND_LOOKUP = {
+    ["import"] = function (_, player)
+        UI.setAttribute("popup", "active", "true")
+        UI.setAttribute("popup", "visibility", player.color)
+    end
+}
+
+function onLoad()
+    UI.setXml([[
+        <VerticalLayout
+        id="popup"
+        width="300"
+        height="800"
+        active="false"
+        childAlignment="UpperRight"
+        childForceExpandWidth="false"
+        childForceExpandHeight="false">
+            <Button
+                onClick="closePopup"
+                preferredWidth="30"
+                preferredHeight="30">
+                X
+            </Button>
+            <InputField
+                id="decklist_input"
+                preferredWidth="300"
+                preferredHeight="700"
+                onValueChanged="updatePopupValue"
+                lineType="MultiLineNewLine">
+            </InputField>
+            <Button
+                onClick="importDeckFromPopup"
+                preferredWidth="300"
+                preferredHeight="40">
+                Import
+            </Button>
+        </VerticalLayout>
+    ]])
+end
+
+function closePopup()
+    UI.setAttribute("popup", "active", "false")
+end
+
+function importDeckFromPopup()
+    local data = createAPISearchData(POPUP_VALUE)
+    createCardsFromData(data)
+    closePopup()
+end
+
+function updatePopupValue(obj, value)
+    POPUP_VALUE = value
+end
+
+function onChat(message, player)
+    _, _, command, params = message:find(COMMAND_PATTERN)
+    if command ~= nil then
+        if COMMAND_LOOKUP[command] ~= nil then
+            COMMAND_LOOKUP[command](params, player)
+        else
+            print(command.." is not a command")
+        end
+        return false
+    end
 end
 
 function createAPISearchData(decklist)
@@ -35,54 +97,20 @@ function createAPISearchData(decklist)
     for line in magiclines(decklist) do
 
         local card = {}
+        local skip = false
+
+        print(target)
+
         card.target = target
 
-        -- e.G. 3 Island <251> [THB]
-        -- the additional data between the <> brackets can contain a collector_number in which case we prefer to use that over the name as it is
-        -- more accurate when fetching lands
         if line:match(STRING_PATTERN_WITH_ADDITIONAL_DATA) then
-            _, _, amount, name, additionalData, set = line:find(STRING_PATTERN_WITH_ADDITIONAL_DATA)
+            card = decodeMTGOstring_additionalData(line)
 
-            card.amount = amount
-
-            if (additionalData:match(COLLECTOR_ID_PATTERN)) then
-                card.set = string.lower(set)
-                card.collector_number = additionalData
-            else
-                card.name = name:gsub("/.*","")
-                card.set = string.lower(set)
-            end
-
-        -- e.G. 4 Archmage's Charm [MH1] (F)
-        -- This is just straight up amount, name and set. The information in round brackets at the end can be ignored (F is for foil)
         elseif line:match(STRING_PATTERN) then
-            _, _, amount, name, set = line:find(STRING_PATTERN)
+            card = decodeMTGOstring(line)
 
-            card.amount = amount
-            card.name = name:gsub("/.*","")
-            card.set = string.lower(set)
-
-        -- e.G. 4 Bard Class (AFR) 217
-        -- MTGA uses a slightly different format so we need to account for that.
-        -- as MTGA always provides a cllector_number, we always use that and ignore the name.
         elseif line:match(MTGA_STRING_PATTERN) then
-            -- MTGA puts companions into the sideboard and a special companion slot.
-            -- If we find the Companion in the sideboard we skip it.
-            if (target == COMPANION_POSITION) then
-                Companion = line
-            elseif (Companion == line) then
-                skip = true
-            end
-
-            _, _, amount, setID, collectorsID = line:find(MTGA_STRING_PATTERN)
-
-            -- MTGA uses DAR as a code for DOM. This is likely because Dominaria was the first set on arena and DAR might signify "Dominaria Arena"
-            -- Some sites use DAR aswell so this might need to
-            if (collectorsID == "DAR") then collectorsID = "DOM" end
-
-            card.amount = amount
-            card.set = setID
-            card.collector_number = collectorsID
+            card, skip, Companion = decodeMTGAstring(line, target == Companion, Companion)
 
         else
             -- if the line specifies a position, we take it. if not we default to the sideboard
@@ -91,16 +119,82 @@ function createAPISearchData(decklist)
             skip = true
         end
 
-        if (skip) then
+        if skip then
             skip = false
         else
-
+            card.set = ammendSetName(card.set)
             table.insert(data, card)
-
         end
     end
 
     return data
+end
+
+-- e.G. 4 Archmage's Charm [MH1] (F)
+-- This is just straight up amount, name and set. The information in round brackets at the end can be ignored (F is for foil)
+function decodeMTGOstring(line)
+    local card = {}
+    local _, _, amount, name, set = line:find(STRING_PATTERN)
+
+    card.amount = amount
+    card.name = name:gsub("/.*","")
+    card.set = string.lower(set)
+
+    return card
+end
+
+-- e.G. 3 Island <251> [THB]
+-- the additional data between the <> brackets can contain a collector_number in which case we prefer to use that over the name as it is
+-- more accurate when fetching lands
+function decodeMTGOstring_additionalData(line)
+    local card = {}
+    local _, _, amount, name, additionalData, set = line:find(STRING_PATTERN_WITH_ADDITIONAL_DATA)
+
+    card.amount = amount
+
+    if (additionalData:match(COLLECTOR_ID_PATTERN)) then
+        card.set = string.lower(set)
+        card.collector_number = additionalData
+    else
+        card.name = name:gsub("/.*","")
+        card.set = string.lower(set)
+    end
+
+    return card
+end
+
+-- e.G. 4 Bard Class (AFR) 217
+-- MTGA uses a slightly different format so we need to account for that.
+-- as MTGA always provides a collector_number, we always use that and ignore the name.
+function decodeMTGAstring(line, isCompanion, companion)
+    -- MTGA puts companions into the sideboard and a special companion slot.
+    -- If we find the Companion in the sideboard we skip it.
+    if (isCOmpanion) then
+        companion = line
+    elseif (companion == line) then
+        skip = true
+    end
+
+    local card = {}
+    local _, _, amount, setID, collectorsID = line:find(MTGA_STRING_PATTERN)
+
+    card.amount = amount
+    card.set = setID
+    card.collector_number = collectorsID
+
+    return card, skip, companion
+end
+
+function ammendSetName(set)
+    -- MTGA uses DAR as a code for DOM. This is likely because Dominaria was the first set on arena and DAR might signify "Dominaria Arena"
+    -- Some sites use DAR aswell so this might need to
+    if set == "DAR" then set = "DOM" end
+    -- some sites use [1E, 2E ...] instead of [1ED, 2ED, ...] but scryfall doesn't liek that so we add the D
+    if set ~= nil and set:match("%de") then
+        set = set.."d"
+    end
+
+    return set
 end
 
 function createCardsFromData(data)
@@ -115,7 +209,7 @@ function createCardsFromData(data)
 
         -- standard error handling
         if request.is_error then
-            print("Request failed: " .. request.error)
+            print ("Request Failed")
             return
         end
 
@@ -128,7 +222,6 @@ function createCardsFromData(data)
 
         local cards = JSON.decode(request.text).data
 
-        -- go through received data
         for i, value in ipairs(cards) do
             for j=1, data[i].amount do createCard(value, data[i].target) end
         end
@@ -136,14 +229,10 @@ function createCardsFromData(data)
 end
 
 function createCard(data, target)
-    local rotation = self.getRotation()
-    rotation[2] = rotation[2] + 180
-    rotation[3] = rotation[3] + 180
     local cardData = {
         type = "CardCustom",
-        position = self.positionToWorld(target),
-        scale = {2, 2, 2},
-        rotation = rotation
+        positon = target,
+        rotation = {0, 180, 180}
     }
     local card = spawnObject(cardData)
 
@@ -161,4 +250,9 @@ function createCard(data, target)
     end
 
     card.setName(data.name)
+end
+
+function magiclines(s)
+    if s:sub(-1)~="\n" then s=s.."\n" end
+    return s:gmatch("(.-)\n")
 end
