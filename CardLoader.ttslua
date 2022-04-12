@@ -99,8 +99,6 @@ function createAPISearchData(decklist)
         local card = {}
         local skip = false
 
-        print(target)
-
         card.target = target
 
         if line:match(STRING_PATTERN_WITH_ADDITIONAL_DATA) then
