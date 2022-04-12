@@ -1,0 +1,54 @@
+function createCardsFromData(data)
+    local body = JSON.encode({
+        identifiers = data
+    })
+
+    local headers = {
+        ["Content-Type"] = "application/json"
+    }
+    WebRequest.custom(SCRYFALL_BASE_URL.."/cards/collection", "POST", true, body, headers, function(request)
+
+        -- standard error handling
+        if request.is_error then
+            print ("Request Failed")
+            return
+        end
+
+        -- dealing with non-json data
+        local contentType = request.getResponseHeader("Content-Type") or ""
+        if contentType ~= "application/json" and not contentType:match("^application/json;") then
+            print("Unexpected response from Scryfall.")
+            return
+        end
+
+        local cards = JSON.decode(request.text).data
+
+        for i, value in ipairs(cards) do
+            for j=1, data[i].amount do createCard(value, data[i].target) end
+        end
+    end)
+end
+
+function createCard(data, target)
+    local cardData = {
+        type = "CardCustom",
+        positon = target,
+        rotation = {0, 180, 180}
+    }
+    local card = spawnObject(cardData)
+
+    if data.image_uris ~= nil then
+        card.setCustomObject({
+            face = data.image_uris.large,
+            back = CARD_BACK_URL
+        })
+    else
+        card.setCustomObject({
+            face = data.card_faces[1].image_uris.large,
+            back = CARD_BACK_URL
+        })
+
+    end
+
+    card.setName(data.name)
+end

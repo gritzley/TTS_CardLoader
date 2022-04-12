@@ -1,0 +1,51 @@
+function onLoad()
+    UI.setXml([[
+        <VerticalLayout
+        id="popup"
+        width="300"
+        height="800"
+        active="false"
+        childAlignment="UpperRight"
+        childForceExpandWidth="false"
+        childForceExpandHeight="false">
+            <Button
+                onClick="closePopup"
+                preferredWidth="30"
+                preferredHeight="30">
+                X
+            </Button>
+            <InputField
+                id="decklist_input"
+                preferredWidth="300"
+                preferredHeight="700"
+                onValueChanged="updatePopupValue"
+                lineType="MultiLineNewLine">
+            </InputField>
+            <Button
+                onClick="importDeckFromPopup"
+                preferredWidth="300"
+                preferredHeight="40">
+                Import
+            </Button>
+        </VerticalLayout>
+    ]])
+end
+
+function closePopup()
+    UI.setAttribute("popup", "active", "false")
+end
+
+function openPopup(color)
+    UI.setAttribute("popup", "active", "true")
+    UI.setAttribute("popup", "visibility", color)
+end
+
+function importDeckFromPopup()
+    local data = createAPISearchData(POPUP_VALUE)
+    createCardsFromData(data)
+    closePopup()
+end
+
+function updatePopupValue(obj, value)
+    POPUP_VALUE = value
+end

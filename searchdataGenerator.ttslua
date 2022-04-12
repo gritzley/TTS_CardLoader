@@ -1,0 +1,90 @@
+-- lua does not support regex, as regex is larger than lua itself. It has its own simpler (and uglier) pattern matcher.
+-- it even supports capture groups. just ignore how ugly it looks
+SET_ID_PATTERN = "(%w%w%w*)"
+COLLECTOR_ID_PATTERN = "(%d%d?%d?)"
+CARDNAME_PATTERN = "([%w%s%p'\"%+%_/]+)"
+MTGA_STRING_PATTERN = "(%d+).*%("..SET_ID_PATTERN.."%)%s"..COLLECTOR_ID_PATTERN
+STRING_PATTERN_LAND_EXACT = "(%d+)%s"..CARDNAME_PATTERN.."%s<"..COLLECTOR_ID_PATTERN..">%s%["..SET_ID_PATTERN.."%]"
+STRING_PATTERN = "(%d+)%s"..CARDNAME_PATTERN.."%s%["..SET_ID_PATTERN.."%]"
+
+MAINDECK_POSITION = {-1, 1, -1}
+SIDEBOARD_POSITION = {1, 1, -1}
+COMMANDER_POSITION = {1, 1, 1}
+COMPANION_POSITION = {-1, 1, 1}
+
+function createAPISearchData(decklist)
+    local data = {}
+
+    local target = MAINDECK_POSITION
+    local targetLookup = {
+        Deck = MAINDECK_POSITION,
+        Sideboard = SIDEBOARD_POSITION,
+        Commander = COMMANDER_POSITION,
+        Companion = COMPANION_POSITION
+    }
+    local Companion = nil
+
+    for line in magiclines(decklist) do
+
+        local card = {}
+        local skip = false
+
+        card.target = target
+
+        if line:match(STRING_PATTERN_LAND_EXACT) then
+            -- e.G. 3 Island <251> [THB]
+            -- the additional data between the <> brackets can contain a collector_number zo get the exact land, as lands get several versions per set
+            _, _, card.amount, _ , card.collector_number, card.set = line:find(STRING_PATTERN_LAND_EXACT)
+
+        elseif line:match(STRING_PATTERN) then
+            -- e.G. 4 Archmage's Charm [MH1] (F)
+            -- This is just straight up amount, name and set. The information in round brackets at the end can be ignored (F is for foil)
+            _, _, card.amount, card.name, card.set = line:find(STRING_PATTERN)
+
+        elseif line:match(MTGA_STRING_PATTERN) then
+            -- e.G. 4 Bard Class (AFR) 217
+            -- MTGA uses a slightly different format so we need to account for that.
+            -- as MTGA always provides a collector_number, we always use that and ignore the name.
+            _, _, card.amount, card.set, card.collector_number = line:find(MTGA_STRING_PATTERN)
+
+            -- MTGA puts the companion in the sideboard and in a special slot so we have to skip the slot in the sideboard, if the companion is already set.
+            -- This is by no means perfect but should cover lists exported fron MTGA
+            if target == COMPANION_POSITION then Companion = line
+            elseif Companion == line then skip = true end
+
+        else
+            -- if the line specifies a position, we take it. if not we default to the sideboard
+            -- this is because a lot of formats simply use an empty line to signify the sideboard
+            target = targetLookup[line:gsub("%s+", "")] or SIDEBOARD_POSITION
+            skip = true
+        end
+
+        if skip then
+            skip = false
+        else
+            -- Names of split cards like "Fire//Ice" mess up the scryfall search.
+            -- Luckily, the name of each part of the card must be unique aswell, so searching for just "Fire" will yield the same card.
+            if card.name ~= nil then card.name = card.name:gsub("/.*","") end
+
+            -- and we have to do some stuff with the set aswell, which i have bundled
+            if card.set ~= nil then card.set = ammendSetName(card.set) end
+
+            table.insert(data, card)
+        end
+    end
+
+    return data
+end
+
+function ammendSetName(set)
+    set = string.lower(set)
+    -- MTGA uses DAR as a code for DOM. This is likely because Dominaria was the first set on arena and DAR might signify "Dominaria Arena"
+    -- Some sites use DAR aswell so this might need to
+    if set == "dar" then set = "dom" end
+    -- some sites use [1E, 2E ...] instead of [1ED, 2ED, ...] but scryfall doesn't liek that so we add the d
+    if set ~= nil and set:match("%de") then
+        set = set.."d"
+    end
+
+    return set
+end

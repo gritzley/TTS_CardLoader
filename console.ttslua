@@ -1,0 +1,18 @@
+COMMAND_PATTERN = "^%$(%w+)%s?(.*)"
+COMMAND_LOOKUP = {
+    ["import"] = function (_, player)
+        openPopup(player.color)
+    end
+}
+
+function onChat(message, player)
+    _, _, command, params = message:find(COMMAND_PATTERN)
+    if command ~= nil then
+        if COMMAND_LOOKUP[command] ~= nil then
+            COMMAND_LOOKUP[command](params, player)
+        else
+            print(command.." is not a command")
+        end
+        return false
+    end
+end
