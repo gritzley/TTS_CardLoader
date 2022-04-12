@@ -2,7 +2,7 @@ CARD_BACK_URL = "https://static.wikia.nocookie.net/mtgsalvation_gamepedia/images
 SCRYFALL_BASE_URL = "https://api.scryfall.com/"
 -- lua does not support regex, as regex is larger than lua itself. It has its own simpler (and uglier) pattern matcher.
 -- it even supports capture groups. just ignore how ugly it looks
-SET_ID_PATTERN = "([%w%d][%w%d][%w%d]+)"
+SET_ID_PATTERN = "(%w%w%w*)"
 COLLECTOR_ID_PATTERN = "(%d%d?%d?)"
 CARDNAME_PATTERN = "([%w%s%p'\"%+%_/]+)"
 MTGA_STRING_PATTERN = "(%d+).*%("..SET_ID_PATTERN.."%)%s"..COLLECTOR_ID_PATTERN
