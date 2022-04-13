@@ -49,7 +49,26 @@ function createCard(data, target)
             back = CARD_BACK_URL
         })
 
+        card.setGMNotes(JSON.encode({
+            backface = data.card_faces[2].image_uris.large
+        }))
     end
 
     card.setName(data.name)
+end
+
+function tryObjectRandomize(object)
+    local gmData = JSON.decode(object.getGMNotes())
+    if gmData == nil then return end
+
+    if gmData.backface ~= nil then
+        local tmp = object.getCustomObject()
+        object.setCustomObject({
+            face = gmData.backface,
+            back = tmp.back
+        })
+        gmData.backface = tmp.face
+    end
+
+    object.setGMNotes(JSON.encode(gmData))
 end
