@@ -32,8 +32,9 @@ end
 function createCard(data, target)
     local cardData = {
         type = "CardCustom",
-        positon = target,
-        rotation = {0, 180, 180}
+
+        position = target,
+        rotation = {0, 180, 0}
     }
     local card = spawnObject(cardData)
 
