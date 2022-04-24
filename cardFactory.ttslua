@@ -8,18 +8,7 @@ function createCardsFromData(data)
     }
     WebRequest.custom(SCRYFALL_BASE_URL.."/cards/collection", "POST", true, body, headers, function(request)
 
-        -- standard error handling
-        if request.is_error then
-            print ("Request Failed")
-            return
-        end
-
-        -- dealing with non-json data
-        local contentType = request.getResponseHeader("Content-Type") or ""
-        if contentType ~= "application/json" and not contentType:match("^application/json;") then
-            print("Unexpected response from Scryfall.")
-            return
-        end
+        if requestNotValid(request) then return end
 
         local cards = JSON.decode(request.text).data
 

@@ -1,0 +1,14 @@
+function requestNotValid(request)
+    -- standard error handling
+    if request.is_error then
+        print ("Request Failed")
+        return true
+    end
+
+    -- dealing with non-json data
+    local contentType = request.getResponseHeader("Content-Type") or ""
+    if contentType ~= "application/json" and not contentType:match("^application/json;") then
+        print("Unexpected response from Scryfall.")
+        return true
+    end
+end
