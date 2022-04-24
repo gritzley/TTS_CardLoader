@@ -6,7 +6,7 @@ function createCardsFromData(data)
     local headers = {
         ["Content-Type"] = "application/json"
     }
-    WebRequest.custom(SCRYFALL_BASE_URL.."/cards/collection", "POST", true, body, headers, function(request)
+    WebRequest.custom(SCRYFALL_BASE_URL.."cards/collection", "POST", true, body, headers, function(request)
 
         if requestNotValid(request) then return end
 
