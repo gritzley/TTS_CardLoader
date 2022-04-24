@@ -18,6 +18,24 @@ function createCardsFromData(data)
     end)
 end
 
+function createRandomCard(query)
+
+    if not alchemyEnabled then query = "game:paper%20"..query end
+
+    WebRequest.get(SCRYFALL_BASE_URL.."cards/random?q="..query, function(request)
+
+        if requestNotValid(request) then return end
+
+        local card = JSON.decode(request.text)
+
+        if card.code == "Not_found" then
+            print("No card matching the query could be found")
+            return
+        end 
+        createCard(card, MAINDECK_POSITION)
+    end)
+end
+
 function createCard(data, target)
     local cardData = {
         type = "CardCustom",
