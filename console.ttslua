@@ -9,6 +9,17 @@ COMMAND_LOOKUP = {
 
         for i=1,3 do createRandomCard("s:"..set.."%20r:uncommon") end
         for i=1,10 do createRandomCard("s:"..set.."%20r:common") end
+    end,
+    ["random"] = function (query, _)
+        if query:match("-a") then
+            query = query:gsub("-a", "")
+            local alchemy = true
+        end
+        if query:match("alchemy") then
+            local alchemy = true
+        end
+        query = query:gsub("%s", "%%20")
+        createRandomCard(query, alchemy)
     end
 }
 
