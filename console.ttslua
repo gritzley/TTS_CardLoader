@@ -20,6 +20,10 @@ COMMAND_LOOKUP = {
         end
         query = query:gsub("%s", "%%20")
         createRandomCard(query, alchemy)
+    end,
+    ["spawn"] = function (cardstring, _)
+        local data = createAPISearchData(cardstring)
+        createCardsFromData(data)
     end
 }
 
