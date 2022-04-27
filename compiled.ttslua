@@ -1,0 +1,397 @@
+----#include CardLoader/main
+----#include ui
+function buildUI()
+    UI.setXml([[
+        <VerticalLayout
+        id="popup"
+        width="300"
+        height="800"
+        active="false"
+        childAlignment="UpperRight"
+        childForceExpandWidth="false"
+        childForceExpandHeight="false">
+            <Button
+                onClick="closePopup"
+                preferredWidth="30"
+                preferredHeight="30">
+                X
+            </Button>
+            <InputField
+                id="decklist_input"
+                preferredWidth="300"
+                preferredHeight="700"
+                onValueChanged="updatePopupValue"
+                lineType="MultiLineNewLine">
+            </InputField>
+            <Button
+                onClick="importDeckFromPopup"
+                preferredWidth="300"
+                preferredHeight="40">
+                Import
+            </Button>
+        </VerticalLayout>
+    ]])
+end
+
+function closePopup()
+    UI.setAttribute("popup", "active", "false")
+end
+
+function openPopup(color)
+    UI.setAttribute("popup", "active", "true")
+    UI.setAttribute("popup", "visibility", color)
+end
+
+function importDeckFromPopup()
+    local data = createAPISearchData(POPUP_VALUE)
+    createCardsFromData(data)
+    closePopup()
+end
+
+function updatePopupValue(obj, value)
+    POPUP_VALUE = value
+end
+
+----#include ui
+----#include console
+COMMAND_PATTERN = "^%$(%w+)%s?(.*)"
+COMMAND_LOOKUP = {
+    ["import"] = function (_, player)
+        openPopup(player.color)
+    end,
+    ["booster"] = function (set, _)
+        if math.random() < 0.1 then createRandomCard("s:"..set.."%20r:mythic")
+        else createRandomCard("s:"..set.."%20r:rare") end
+
+        for i=1,3 do createRandomCard("s:"..set.."%20r:uncommon") end
+        for i=1,10 do createRandomCard("s:"..set.."%20r:common") end
+    end,
+    ["random"] = function (query, _)
+        if query:match("-a") then
+            query = query:gsub("-a", "")
+            local alchemy = true
+        end
+        if query:match("alchemy") then
+            local alchemy = true
+        end
+        query = query:gsub("%s", "%%20")
+        createRandomCard(query, alchemy)
+    end,
+    ["spawn"] = function (cardstring, _)
+        local data = createAPISearchData(cardstring)
+        createCardsFromData(data)
+    end,
+    ["setSleeve"] = function (url, player)
+        setPlayerData(player, "sleeve", url)
+    end
+}
+
+function onChat(message, player)
+    _, _, command, params = message:find(COMMAND_PATTERN)
+    if command ~= nil then
+        if COMMAND_LOOKUP[command] ~= nil then
+            COMMAND_LOOKUP[command](params, player)
+        else
+            print(command.." is not a command")
+        end
+        return false
+    end
+end
+
+----#include console
+----#include contextMenu
+function handleContextMenu(player, action, targets)
+    -- action 13 is select. since rightclicking an object selects it, this means that this will always have been performed at some point before the context menu opens
+    if (action == 13) then
+        for _, obj in pairs(targets) do
+            obj.clearContextMenu()
+            local actions = CONTEXTMENU_LOOKUP[obj.type]
+            if actions ~= nil then
+                for name, action in pairs(actions) do
+                    obj.addContextMenuItem(name, function() action(obj, player) end, false)
+                end
+            end
+        end
+    end
+end
+
+DEBUG_SLEEVE_URL = "https://cdn11.bigcommerce.com/s-bbfhow7rlv/images/stencil/1280x1280/products/129/529/MTG-Sleeves-End-Of-Things__72707.1506259920.PNG?c=2"
+
+CONTEXTMENU_LOOKUP = {
+    ["Card"] = {
+        ["Sleeve"] = function(card, player)
+            changeCardSleeve(card, getPlayerData(player, "sleeve") or CARD_BACK_URL)
+        end
+    },
+    ["Deck"] = {
+        ["Sleeve"] = function(deck, player)
+            changeDeckSleeves(deck, getPlayerData(player, "sleeve") or CARD_BACK_URL)
+        end
+    }
+}
+
+----#include contextMenu
+----#include utils/magiclines
+-- this lets you iterate over every line of a string
+-- taken from https://stackoverflow.com/questions/19326368/iterate-over-lines-including-blank-lines
+
+function magiclines(s)
+    if s:sub(-1)~="\n" then s=s.."\n" end
+    return s:gmatch("(.-)\n")
+end
+
+----#include utils/magiclines
+----#include searchdataGenerator
+-- lua does not support regex, as regex is larger than lua itself. It has its own simpler (and uglier) pattern matcher.
+-- it even supports capture groups. just ignore how ugly it looks
+SET_ID_PATTERN = "(%w%w%w*)"
+COLLECTOR_ID_PATTERN = "(%d%d?%d?)"
+CARDNAME_PATTERN = "([%w%s%p'\"%+%_/]+)"
+SIMPLE_PATTERN = "(%d+)%s"..CARDNAME_PATTERN
+MTGA_STRING_PATTERN = SIMPLE_PATTERN.."%("..SET_ID_PATTERN.."%)%s"..COLLECTOR_ID_PATTERN
+STRING_PATTERN_LAND_EXACT = SIMPLE_PATTERN.."%s<"..COLLECTOR_ID_PATTERN..">%s%["..SET_ID_PATTERN.."%]"
+STRING_PATTERN = SIMPLE_PATTERN.."%s%["..SET_ID_PATTERN.."%]"
+
+
+MAINDECK_POSITION = {0, 1, 0}
+SIDEBOARD_POSITION = {3, 1, 0}
+COMMANDER_POSITION = {0, 1, 3}
+COMPANION_POSITION = {3, 1, 3}
+
+function createAPISearchData(decklist)
+    local data = {}
+
+    local target = MAINDECK_POSITION
+    local targetLookup = {
+        Deck = MAINDECK_POSITION,
+        Sideboard = SIDEBOARD_POSITION,
+        Commander = COMMANDER_POSITION,
+        Companion = COMPANION_POSITION
+    }
+    local Companion = nil
+
+    for line in magiclines(decklist) do
+
+        local card = {}
+        local skip = false
+
+        card.target = target
+
+        if line:match(STRING_PATTERN_LAND_EXACT) then
+            -- e.G. 3 Island <251> [THB]
+            -- the additional data between the <> brackets can contain a collector_number zo get the exact land, as lands get several versions per set
+            _, _, card.amount, _ , card.collector_number, card.set = line:find(STRING_PATTERN_LAND_EXACT)
+
+        elseif line:match(STRING_PATTERN) then
+            -- e.G. 4 Archmage's Charm [MH1] (F)
+            -- This is just straight up amount, name and set. The information in round brackets at the end can be ignored (F is for foil)
+            _, _, card.amount, card.name, card.set = line:find(STRING_PATTERN)
+
+        elseif line:match(MTGA_STRING_PATTERN) then
+            -- e.G. 4 Bard Class (AFR) 217
+            -- MTGA uses a slightly different format so we need to account for that.
+            -- as MTGA always provides a collector_number, we always use that and ignore the name.
+            _, _, card.amount, card.set, card.collector_number = line:find(MTGA_STRING_PATTERN)
+
+            -- MTGA puts the companion in the sideboard and in a special slot so we have to skip the slot in the sideboard, if the companion is already set.
+            -- This is by no means perfect but should cover lists exported fron MTGA
+            if target == COMPANION_POSITION then Companion = line
+            elseif Companion == line then skip = true end
+
+        elseif line:match(SIMPLE_PATTERN) then
+            -- e.G. 4 Forest
+            -- if you don't care about printings, this can easily spawn stuff
+            _, _, card.amount, card.name = line:find(SIMPLE_PATTERN)
+
+        else
+            -- if the line specifies a position, we take it. if not we default to the sideboard
+            -- this is because a lot of formats simply use an empty line to signify the sideboard
+            target = targetLookup[line:gsub("%s+", "")] or SIDEBOARD_POSITION
+            skip = true
+        end
+
+        if skip then
+            skip = false
+        else
+            -- Names of split cards like "Fire//Ice" mess up the scryfall search.
+            -- Luckily, the name of each part of the card must be unique aswell, so searching for just "Fire" will yield the same card.
+            if card.name ~= nil then card.name = card.name:gsub("/.*","") end
+
+            -- and we have to do some stuff with the set aswell, which i have bundled
+            if card.set ~= nil then card.set = ammendSetName(card.set) end
+
+            table.insert(data, card)
+        end
+    end
+
+    return data
+end
+
+function ammendSetName(set)
+    set = string.lower(set)
+    -- MTGA uses DAR as a code for DOM. This is likely because Dominaria was the first set on arena and DAR might signify "Dominaria Arena"
+    -- Some sites use DAR aswell so this might need to
+    if set == "dar" then set = "dom" end
+    -- some sites use [1E, 2E ...] instead of [1ED, 2ED, ...] but scryfall doesn't liek that so we add the d
+    if set ~= nil and set:match("%de") then
+        set = set.."d"
+    end
+
+    return set
+end
+
+----#include searchdataGenerator
+----#include cardFactory
+SCRYFALL_BASE_URL = "https://api.scryfall.com/"
+CARD_BACK_URL = "https://static.wikia.nocookie.net/mtgsalvation_gamepedia/images/f/f8/Magic_card_back.jpg/revision/latest?cb=20140813141013"
+
+
+function createCardsFromData(data)
+
+    local body = JSON.encode({
+        identifiers = data
+    })
+
+    local headers = {
+        ["Content-Type"] = "application/json"
+    }
+
+    WebRequest.custom(SCRYFALL_BASE_URL.."cards/collection", "POST", true, body, headers, function(request)
+
+        if requestNotValid(request) then return end
+
+        local cards = JSON.decode(request.text).data
+
+        for i, value in ipairs(cards) do
+            for j=1, data[i].amount do createCard(value, data[i].target) end
+        end
+    end)
+end
+
+function createRandomCard(query)
+
+    if not alchemyEnabled then query = "game:paper%20"..query end
+
+    WebRequest.get(SCRYFALL_BASE_URL.."cards/random?q="..query, function(request)
+
+        if requestNotValid(request) then return end
+
+        local card = JSON.decode(request.text)
+
+        if card.code == "Not_found" then
+            print("No card matching the query could be found")
+            return
+        end
+        createCard(card, MAINDECK_POSITION)
+    end)
+end
+
+function createCard(data, target)
+
+    local cardData = {
+        type = "CardCustom",
+
+        position = target,
+        rotation = {0, 180, 180}
+    }
+    local card = spawnObject(cardData)
+
+    if data.image_uris ~= nil then
+        card.setCustomObject({
+            face = data.image_uris.large,
+            back = CARD_BACK_URL
+        })
+    else
+        card.setCustomObject({
+            face = data.card_faces[1].image_uris.large,
+            back = CARD_BACK_URL
+        })
+
+        card.setGMNotes(JSON.encode({
+            backface = data.card_faces[2].image_uris.large
+        }))
+    end
+
+    card.setName(data.name)
+end
+
+function tryObjectRandomize(object)
+    local gmData = JSON.decode(object.getGMNotes())
+    if gmData == nil then return end
+
+    if gmData.backface ~= nil then
+        local tmp = object.getCustomObject()
+        object.setCustomObject({
+            face = gmData.backface,
+            back = tmp.back
+        })
+        gmData.backface = tmp.face
+    end
+
+    object.setGMNotes(JSON.encode(gmData))
+end
+
+----#include cardFactory
+----#include WebRequest
+function requestNotValid(request)
+    -- standard error handling
+    if request.is_error then
+        print ("Request Failed")
+        return true
+    end
+
+    -- dealing with non-json data
+    local contentType = request.getResponseHeader("Content-Type") or ""
+    if contentType ~= "application/json" and not contentType:match("^application/json;") then
+        print("Unexpected response from Scryfall.")
+        return true
+    end
+end
+
+----#include WebRequest
+----#include sleeves
+function changeCardSleeve(card, url)
+    card.setCustomObject({
+        face = card.getCustomObject().face,
+        back = url
+    })
+end
+
+function changeDeckSleeves(deck, url)
+    -- changing the sleeve for the whole deck breaks all the cards so we have to do it one by one.
+
+    -- do as often as there are cards in the deck
+    for _, _ in pairs(deck.getObjects()) do
+        -- take top card and change sleeve
+        local card = deck.takeObject({index = 1})
+        changeCardSleeve(card, url)
+    end
+end
+
+----#include sleeves
+----#include playerData
+PLAYERDATA = {}
+
+function setPlayerData(player, name, value)
+    if PLAYERDATA[player.steam_name] == nil then
+        PLAYERDATA[player.steam_name] = {}
+    end
+    PLAYERDATA[player.steam_name][name] = value
+end
+
+function getPlayerData(player, name)
+    if PLAYERDATA[player.steam_name] == nil then return nil end
+    return PLAYERDATA[player.steam_name][name]
+end
+
+----#include playerData
+
+function onLoad()
+    buildUI()
+end
+
+function onPlayerAction(player, action, targets)
+    handleContextMenu(player, action, targets)
+end
+
+----#include CardLoader/main
