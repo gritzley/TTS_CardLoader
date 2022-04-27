@@ -51,8 +51,11 @@ function createAPISearchData(decklist)
 
             -- MTGA puts the companion in the sideboard and in a special slot so we have to skip the slot in the sideboard, if the companion is already set.
             -- This is by no means perfect but should cover lists exported fron MTGA
-            if target == COMPANION_POSITION then Companion = line
-            elseif Companion == line then skip = true end
+            if target == COMPANION_POSITION then
+                Companion = line
+            elseif
+                Companion == line then skip = true
+            end
 
         elseif line:match(SIMPLE_PATTERN) then
             -- e.G. 4 Forest
