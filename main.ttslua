@@ -1,6 +1,17 @@
 #include ui
 #include console
+#include contextMenu
 #include utils/magiclines
 #include searchdataGenerator
 #include cardFactory
 #include WebRequest
+#include sleeves
+#include playerData
+
+function onLoad()
+    buildUI()
+end
+
+function onPlayerAction(player, action, targets)
+    handleContextMenu(player, action, targets)
+end

@@ -1,0 +1,17 @@
+function changeCardSleeve(card, url)
+    card.setCustomObject({
+        face = card.getCustomObject().face,
+        back = url
+    })
+end
+
+function changeDeckSleeves(deck, url)
+    -- changing the sleeve for the whole deck breaks all the cards so we have to do it one by one.
+
+    -- do as often as there are cards in the deck
+    for _, _ in pairs(deck.getObjects()) do
+        -- take top card and change sleeve
+        local card = deck.takeObject({index = 1})
+        changeCardSleeve(card, url)
+    end
+end

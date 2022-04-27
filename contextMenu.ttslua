@@ -1,0 +1,37 @@
+-- this is called on player action
+function handleContextMenu(player, action, targets)
+    -- action 13 is select. since rightclicking an object selects it, this means that this will always have been performed at some point before the context menu opens
+    if (action == 13) then
+        for _, obj in pairs(targets) do
+            obj.clearContextMenu()
+            local actions = CONTEXTMENU_LOOKUP[obj.type]
+            if actions ~= nil then
+                for name, action in pairs(actions) do
+                    obj.addContextMenuItem(name, function() action(obj, player) end, false)
+                end
+            end
+        end
+    end
+end
+
+DEBUG_SLEEVE_URL = "https://cdn11.bigcommerce.com/s-bbfhow7rlv/images/stencil/1280x1280/products/129/529/MTG-Sleeves-End-Of-Things__72707.1506259920.PNG?c=2"
+
+-- This table maps object types to contextMenu Items
+-- Format
+--  ["Object Type"] = {
+--      ["Context Menu Item Name"] = function(obj, player)
+--          //code
+--      end
+--  }
+CONTEXTMENU_LOOKUP = {
+    ["Card"] = {
+        ["Sleeve"] = function(card, player)
+            changeCardSleeve(card, getPlayerData(player, "sleeve") or CARD_BACK_URL)
+        end
+    },
+    ["Deck"] = {
+        ["Sleeve"] = function(deck, player)
+            changeDeckSleeves(deck, getPlayerData(player, "sleeve") or CARD_BACK_URL)
+        end
+    }
+}

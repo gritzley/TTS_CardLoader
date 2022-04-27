@@ -1,0 +1,13 @@
+PLAYERDATA = {}
+
+function setPlayerData(player, name, value)
+    if PLAYERDATA[player.steam_name] == nil then
+        PLAYERDATA[player.steam_name] = {}
+    end
+    PLAYERDATA[player.steam_name][name] = value
+end
+
+function getPlayerData(player, name)
+    if PLAYERDATA[player.steam_name] == nil then return nil end
+    return PLAYERDATA[player.steam_name][name]
+end

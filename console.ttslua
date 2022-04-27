@@ -24,6 +24,9 @@ COMMAND_LOOKUP = {
     ["spawn"] = function (cardstring, _)
         local data = createAPISearchData(cardstring)
         createCardsFromData(data)
+    end,
+    ["setSleeve"] = function (url, player)
+        setPlayerData(player, "sleeve", url)
     end
 }
 
