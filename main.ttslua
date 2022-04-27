@@ -1,6 +1,3 @@
-CARD_BACK_URL = "https://static.wikia.nocookie.net/mtgsalvation_gamepedia/images/f/f8/Magic_card_back.jpg/revision/latest?cb=20140813141013"
-SCRYFALL_BASE_URL = "https://api.scryfall.com/"
-
 #include ui
 #include console
 #include utils/magiclines

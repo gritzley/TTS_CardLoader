@@ -1,4 +1,8 @@
+SCRYFALL_BASE_URL = "https://api.scryfall.com/"
+CARD_BACK_URL = "https://static.wikia.nocookie.net/mtgsalvation_gamepedia/images/f/f8/Magic_card_back.jpg/revision/latest?cb=20140813141013"
+
 function createCardsFromData(data)
+
     local body = JSON.encode({
         identifiers = data
     })
@@ -6,6 +10,7 @@ function createCardsFromData(data)
     local headers = {
         ["Content-Type"] = "application/json"
     }
+
     WebRequest.custom(SCRYFALL_BASE_URL.."cards/collection", "POST", true, body, headers, function(request)
 
         if requestNotValid(request) then return end
@@ -31,12 +36,13 @@ function createRandomCard(query)
         if card.code == "Not_found" then
             print("No card matching the query could be found")
             return
-        end 
+        end
         createCard(card, MAINDECK_POSITION)
     end)
 end
 
 function createCard(data, target)
+
     local cardData = {
         type = "CardCustom",
 
