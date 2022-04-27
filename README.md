@@ -36,7 +36,7 @@ The other is to just dump the code that I copy/pasted from the built version of 
 3. Select "Modding" in the top bar and paste the code into the editor that opens.
 4. Click "Save & Play"
 
-## How to uses
+## How to use
 
 This library adds some console commands that you can execute by just typing them into the chat and some extra functionality to the context menus of card and deck objects.
 
