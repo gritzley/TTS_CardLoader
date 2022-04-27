@@ -1,0 +1,32 @@
+COMMAND.import = function (_, player)
+    openPopup(player.color)
+end
+
+COMMAND.booster = function (set, _)
+    if math.random() < 0.1 then createRandomCard("s:"..set.."%20r:mythic")
+    else createRandomCard("s:"..set.."%20r:rare") end
+
+    for i=1,3 do createRandomCard("s:"..set.."%20r:uncommon") end
+    for i=1,10 do createRandomCard("s:"..set.."%20r:common") end
+end
+
+COMMAND.random = function (query, _)
+    if query:match("-a") then
+        query = query:gsub("-a", "")
+        local alchemy = true
+    end
+    if query:match("alchemy") then
+        local alchemy = true
+    end
+    query = query:gsub("%s", "%%20")
+    createRandomCard(query, alchemy)
+end
+
+COMMAND.spawn = function (cardstring, _)
+    local data = createAPISearchData(cardstring)
+    createCardsFromData(data)
+end
+
+COMMAND.setSleeve = function (url, player)
+    setPlayerData(player, "sleeve", url)
+end

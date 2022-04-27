@@ -1,5 +1,6 @@
 #include ui
-#include console
+#include console/console
+#include console/commands
 #include contextMenu
 #include utils/magiclines
 #include searchdataGenerator
@@ -14,4 +15,8 @@ end
 
 function onPlayerAction(player, action, targets)
     handleContextMenu(player, action, targets)
+end
+
+function onChat(message, player)
+    if tryExecuteCommand(message, player) then return false end
 end
