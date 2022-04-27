@@ -19,7 +19,7 @@ The other is to just dump the code that I copy/pasted from the built version of 
 - [TTS Plugin for Atom](https://atom.io/packages/atom-tts)
 
 #### Installation
-1. Download or clone this Repository to "C:/Documents/Tabletop Simulator.
+1. Download or clone this repository to your Atom-TTS directory (by default that's "C:/Documents/Tabletop Simulator").
 2. Open Tabletop Simulator and create a new game.
 3. Select "Modding" in the top bar and in the text editor that opens, write `#include CardLoader/main`
 4. Click "Save & Play"
