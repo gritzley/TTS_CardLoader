@@ -27,11 +27,21 @@ CONTEXTMENU_LOOKUP = {
     ["Card"] = {
         ["Sleeve"] = function(card, player)
             changeCardSleeve(card, getPlayerData(player, "sleeve") or CARD_BACK_URL)
+        end,
+        ["Scale"] = function(card, player)
+            card.setScale(CARD_SCALE or {1,1,1})
         end
     },
     ["Deck"] = {
         ["Sleeve"] = function(deck, player)
             changeDeckSleeves(deck, getPlayerData(player, "sleeve") or CARD_BACK_URL)
+        end,
+        ["Scale"] = function(deck, player)
+            for _, _ in pairs(deck.getObjects()) do
+                -- take top card and change scale
+                local card = deck.takeObject({index = 1})
+                card.setScale(CARD_SCALE or {1,1,1})
+            end
         end
     }
 }

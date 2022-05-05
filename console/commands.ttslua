@@ -19,14 +19,18 @@ COMMAND.random = function (query, _)
         local alchemy = true
     end
     query = query:gsub("%s", "%%20")
-    createRandomCard(query, alchemy)
+    createRandomCard(query, alchemy, true)
 end
 
 COMMAND.spawn = function (cardstring, _)
     local data = createAPISearchData(cardstring)
-    createCardsFromData(data)
+    createCardsFromData(data, true)
 end
 
 COMMAND.setSleeve = function (url, player)
     setPlayerData(player, "sleeve", url)
+end
+
+COMMAND.setScale = function (scale, _)
+    CARD_SCALE = {scale, scale, scale}
 end

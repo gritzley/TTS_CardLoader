@@ -19,3 +19,15 @@ end
 function onChat(message, player)
     if tryExecuteCommand(message, player) then return false end
 end
+
+function onLoad(state_string)
+    local state = JSON.decode(state_string) or {}
+    -- loadPlayerDataFromState(state)
+    buildUI();
+end
+
+function onSave()
+    local state = {}
+    state = savePlayerDataToState(state)
+    return JSON.encode(state)
+end
