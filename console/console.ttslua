@@ -1,11 +1,11 @@
 COMMAND_PATTERN = "^%$(%w+)%s?(.*)"
 COMMAND = { }
 
-function tryExecuteCommand(message, command)
+function tryExecuteCommand(message, player)
     _, _, command, params = message:find(COMMAND_PATTERN)
     if command ~= nil then
-        if COMMANDS[command] ~= nil then
-            COMMANDS[command](params, player)
+        if COMMAND[command] ~= nil then
+            COMMAND[command](params, player)
         else
             print(command.." is not a command")
         end
