@@ -1,6 +1,8 @@
 COMMAND_PATTERN = "^%$(%w+)%s?(.*)"
 COMMAND = { }
 
+#include commands
+
 function tryExecuteCommand(message, player)
     _, _, command, params = message:find(COMMAND_PATTERN)
     if command ~= nil then
