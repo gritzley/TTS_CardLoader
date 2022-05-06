@@ -53,53 +53,69 @@ function updatePopupValue(obj, value)
 end
 
 ----#include ui
-----#include console
+----#include console/console
 COMMAND_PATTERN = "^%$(%w+)%s?(.*)"
-COMMAND_LOOKUP = {
-    ["import"] = function (_, player)
-        openPopup(player.color)
-    end,
-    ["booster"] = function (set, _)
-        if math.random() < 0.1 then createRandomCard("s:"..set.."%20r:mythic")
-        else createRandomCard("s:"..set.."%20r:rare") end
+COMMAND = { }
 
-        for i=1,3 do createRandomCard("s:"..set.."%20r:uncommon") end
-        for i=1,10 do createRandomCard("s:"..set.."%20r:common") end
-    end,
-    ["random"] = function (query, _)
-        if query:match("-a") then
-            query = query:gsub("-a", "")
-            local alchemy = true
-        end
-        if query:match("alchemy") then
-            local alchemy = true
-        end
-        query = query:gsub("%s", "%%20")
-        createRandomCard(query, alchemy)
-    end,
-    ["spawn"] = function (cardstring, _)
-        local data = createAPISearchData(cardstring)
-        createCardsFromData(data)
-    end,
-    ["setSleeve"] = function (url, player)
-        setPlayerData(player, "sleeve", url)
-    end
-}
-
-function onChat(message, player)
+function tryExecuteCommand(message, player)
     _, _, command, params = message:find(COMMAND_PATTERN)
     if command ~= nil then
-        if COMMAND_LOOKUP[command] ~= nil then
-            COMMAND_LOOKUP[command](params, player)
+        if COMMAND[command] ~= nil then
+            COMMAND[command](params, player)
         else
             print(command.." is not a command")
         end
-        return false
+        return true
     end
 end
 
-----#include console
+-- add new commands like this:
+-- COMMAND.name = function(parameters, player)
+--     // code here
+-- end
+
+----#include console/console
+----#include console/commands
+COMMAND.import = function (_, player)
+    openPopup(player.color)
+end
+
+COMMAND.booster = function (set, _)
+    if math.random() < 0.1 then createRandomCard("s:"..set.."%20r:mythic")
+    else createRandomCard("s:"..set.."%20r:rare") end
+
+    for i=1,3 do createRandomCard("s:"..set.."%20r:uncommon") end
+    for i=1,10 do createRandomCard("s:"..set.."%20r:common") end
+end
+
+COMMAND.random = function (query, _)
+    if query:match("-a") then
+        query = query:gsub("-a", "")
+        local alchemy = true
+    end
+    if query:match("alchemy") then
+        local alchemy = true
+    end
+    query = query:gsub("%s", "%%20")
+    createRandomCard(query, alchemy, true)
+end
+
+COMMAND.spawn = function (cardstring, _)
+    local data = createAPISearchData(cardstring)
+    createCardsFromData(data, true)
+end
+
+COMMAND.setSleeve = function (url, player)
+    setPlayerData(player, "sleeve", url)
+end
+
+COMMAND.setScale = function (scale, _)
+    CARD_SCALE = {scale, scale, scale}
+end
+
+----#include console/commands
 ----#include contextMenu
+-- this is called on player action
 function handleContextMenu(player, action, targets)
     -- action 13 is select. since rightclicking an object selects it, this means that this will always have been performed at some point before the context menu opens
     if (action == 13) then
@@ -117,15 +133,32 @@ end
 
 DEBUG_SLEEVE_URL = "https://cdn11.bigcommerce.com/s-bbfhow7rlv/images/stencil/1280x1280/products/129/529/MTG-Sleeves-End-Of-Things__72707.1506259920.PNG?c=2"
 
+-- This table maps object types to contextMenu Items
+-- Format
+--  ["Object Type"] = {
+--      ["Context Menu Item Name"] = function(obj, player)
+--          //code
+--      end
+--  }
 CONTEXTMENU_LOOKUP = {
     ["Card"] = {
         ["Sleeve"] = function(card, player)
             changeCardSleeve(card, getPlayerData(player, "sleeve") or CARD_BACK_URL)
+        end,
+        ["Scale"] = function(card, player)
+            card.setScale(CARD_SCALE or {1,1,1})
         end
     },
     ["Deck"] = {
         ["Sleeve"] = function(deck, player)
             changeDeckSleeves(deck, getPlayerData(player, "sleeve") or CARD_BACK_URL)
+        end,
+        ["Scale"] = function(deck, player)
+            for _, _ in pairs(deck.getObjects()) do
+                -- take top card and change scale
+                local card = deck.takeObject({index = 1})
+                card.setScale(CARD_SCALE or {1,1,1})
+            end
         end
     }
 }
@@ -195,8 +228,11 @@ function createAPISearchData(decklist)
 
             -- MTGA puts the companion in the sideboard and in a special slot so we have to skip the slot in the sideboard, if the companion is already set.
             -- This is by no means perfect but should cover lists exported fron MTGA
-            if target == COMPANION_POSITION then Companion = line
-            elseif Companion == line then skip = true end
+            if target == COMPANION_POSITION then
+                Companion = line
+            elseif
+                Companion == line then skip = true
+            end
 
         elseif line:match(SIMPLE_PATTERN) then
             -- e.G. 4 Forest
@@ -245,8 +281,19 @@ end
 SCRYFALL_BASE_URL = "https://api.scryfall.com/"
 CARD_BACK_URL = "https://static.wikia.nocookie.net/mtgsalvation_gamepedia/images/f/f8/Magic_card_back.jpg/revision/latest?cb=20140813141013"
 
+function createCardsFromData(data, faceup)
 
-function createCardsFromData(data)
+    -- if there are more than 75 identifiers in the data, we need to split it into several requets
+    if (data[75]) then
+        local excessData = {}
+        for i, v in ipairs(data) do
+            if i > 75 then
+                excessData[i-75] = v
+                data[i] = nil
+            end
+        end
+        createCardsFromData(excessData)
+    end
 
     local body = JSON.encode({
         identifiers = data
@@ -263,12 +310,12 @@ function createCardsFromData(data)
         local cards = JSON.decode(request.text).data
 
         for i, value in ipairs(cards) do
-            for j=1, data[i].amount do createCard(value, data[i].target) end
+            for j=1, data[i].amount do createCard(value, data[i].target, faceup) end
         end
     end)
 end
 
-function createRandomCard(query)
+function createRandomCard(query, faceup)
 
     if not alchemyEnabled then query = "game:paper%20"..query end
 
@@ -282,18 +329,21 @@ function createRandomCard(query)
             print("No card matching the query could be found")
             return
         end
-        createCard(card, MAINDECK_POSITION)
+        createCard(card, MAINDECK_POSITION, faceup)
     end)
 end
 
-function createCard(data, target)
+function createCard(data, target, faceup)
 
     local cardData = {
         type = "CardCustom",
 
         position = target,
-        rotation = {0, 180, 180}
+        rotation = {0, 180, 180},
+        scale = CARD_SCALE or {1, 1, 1}
     }
+
+    if faceup then cardData.rotation[3] = 0 end
     local card = spawnObject(cardData)
 
     if data.image_uris ~= nil then
@@ -371,7 +421,6 @@ end
 ----#include sleeves
 ----#include playerData
 PLAYERDATA = {}
-
 function setPlayerData(player, name, value)
     if PLAYERDATA[player.steam_name] == nil then
         PLAYERDATA[player.steam_name] = {}
@@ -380,8 +429,21 @@ function setPlayerData(player, name, value)
 end
 
 function getPlayerData(player, name)
+    print(player.steam_name)
+    print(PLAYERDATA[player.steam_name])
     if PLAYERDATA[player.steam_name] == nil then return nil end
+
     return PLAYERDATA[player.steam_name][name]
+end
+
+function savePlayerDataToState(state)
+    state.playerdata = PLAYERDATA
+    return state
+end
+
+function loadPlayerDataFromState(state)
+    PLAYERDATA = state.playerdata or {}
+    print(PLAYERDATA)
 end
 
 ----#include playerData
@@ -392,6 +454,23 @@ end
 
 function onPlayerAction(player, action, targets)
     handleContextMenu(player, action, targets)
+end
+
+function onChat(message, player)
+    if tryExecuteCommand(message, player) then return false end
+end
+
+function onLoad(state_string)
+    print (state_string)
+    local state = JSON.decode(state_string) or {}
+    loadPlayerDataFromState(state)
+    buildUI();
+end
+
+function onSave()
+    local state = {}
+    state = savePlayerDataToState(state)
+    return JSON.encode(state)
 end
 
 ----#include CardLoader/main
