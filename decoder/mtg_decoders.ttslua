@@ -1,0 +1,56 @@
+-- lua does not support regex, as regex is larger than lua itself. It has its own simpler (and uglier) pattern matcher.
+-- it even supports capture groups. just ignore how ugly it looks
+SET_ID_PATTERN = "(%w%w%w*)"
+COLLECTOR_ID_PATTERN = "(%d%d?%d?)"
+CARDNAME_PATTERN = "([%w%s%p'\"%+%_/]+)"
+SIMPLE_PATTERN = "(%d+)%s"..CARDNAME_PATTERN
+MTGA_STRING_PATTERN = SIMPLE_PATTERN.."%("..SET_ID_PATTERN.."%)%s"
+MTGA_STRING_PATTERN_EXACT = MTGA_STRING_PATTERN..COLLECTOR_ID_PATTERN
+MTGO_STRING_PATTERN = SIMPLE_PATTERN.."%s%["..SET_ID_PATTERN.."%]"
+MTGO_STRING_PATTERN_EXACT = SIMPLE_PATTERN.."%s<"..COLLECTOR_ID_PATTERN..">%s%["..SET_ID_PATTERN.."%]"
+
+PATTERN_DECODER[MTGO_STRING_PATTERN_EXACT] = function (line, card)
+    -- e.G. 3 Island <251> [THB]
+    -- the additional data between the <> brackets can contain a collector_number zo get the exact land, as lands get several versions per set
+    _, _, card.amount, _ , card.collector_number, card.set = line:find(MTGO_STRING_PATTERN_EXACT)
+end
+
+PATTERN_DECODER[MTGO_STRING_PATTERN] = function (line, card)
+    -- e.G. 4 Archmage's Charm [MH1] (F)
+    -- This is just straight up amount, name and set. The information in round brackets at the end can be ignored (F is for foil)
+    _, _, card.amount, card.name, card.set = line:find(MTGO_STRING_PATTERN)
+end
+
+PATTERN_DECODER[MTGA_STRING_PATTERN_EXACT] = function (line, card)
+    -- e.G. 4 Bard Class (AFR) 217
+    -- MTGA uses a slightly different format so we need to account for that.
+    -- as MTGA always provides a collector_number, we always use that and ignore the name.
+    _, _, card.amount, _, card.set, card.collector_number = line:find(MTGA_STRING_PATTERN_EXACT)
+
+    -- MTGA puts the companion in the sideboard and in a special slot so we have to skip the slot in the sideboard, if the companion is already set.
+    -- This is by no means perfect but should cover lists exported fron MTGA
+    if target == COMPANION_POSITION then
+        Companion = line
+    elseif
+        Companion == line then skip = true
+    end
+end
+
+PATTERN_DECODER[MTGA_STRING_PATTERN] = function (line, card)
+    -- e.G. 1 Mystic Remora (ICE)
+    -- Some sites export in the MTGA format but without the collectors id...
+    _, _, card.amount, card.name, card.set = line:find(MTGA_STRING_PATTERN)
+
+    -- See above
+    if target == COMPANION_POSITION then
+        Companion = line
+    elseif
+        Companion == line then skip = true
+    end
+end
+
+PATTERN_DECODER[SIMPLE_PATTERN] = function (line, card)
+    -- e.G. 4 Forest
+    -- if you don't care about printings, this can easily spawn stuff
+    _, _, card.amount, card.name = line:find(SIMPLE_PATTERN)
+end

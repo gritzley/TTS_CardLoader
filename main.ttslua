@@ -1,8 +1,8 @@
 #include ui
 #include console/console
+#include decoder/decoder
 #include contextMenu
 #include utils/magiclines
-#include searchdataGenerator
 #include cardFactory
 #include WebRequest
 #include sleeves

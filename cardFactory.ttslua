@@ -3,6 +3,9 @@ CARD_BACK_URL = "https://static.wikia.nocookie.net/mtgsalvation_gamepedia/images
 
 function createCardsFromData(data, faceup)
 
+    log "searchdata:"
+    log (data)
+
     -- if there are more than 75 identifiers in the data, we need to split it into several requets
     if (data[75]) then
         local excessData = {}
@@ -27,12 +30,20 @@ function createCardsFromData(data, faceup)
 
         if requestNotValid(request) then return end
 
-        local cards = JSON.decode(request.text).data
+        log "Returned data:"
+        log(JSON.decode(request.text))
 
-        for i, v in ipairs(JSON.decode(request.text).not_found) do
-            print (JSON.encode(v) .. " not found")
+        -- if there are cards that weren't found, log their data for debug
+        local not_found = JSON.decode(request.text).not_found
+        if not_found then
+            print "i am here"
+            for i, v in ipairs(not_found) do
+                print (JSON.encode(v) .. " not found")
+            end
         end
 
+        -- spawn all the cards that were found
+        local cards = JSON.decode(request.text).data
         for i, value in ipairs(cards) do
             for j=1, data[i].amount do createCard(value, data[i].target, faceup) end
         end

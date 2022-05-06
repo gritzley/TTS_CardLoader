@@ -1,0 +1,82 @@
+PATTERN_DECODER = {}
+
+MAINDECK_POSITION = {0, 1, 0}
+SIDEBOARD_POSITION = {3, 1, 0}
+COMMANDER_POSITION = {0, 1, 3}
+COMPANION_POSITION = {3, 1, 3}
+
+#include mtg_decoders
+
+function createAPISearchData(decklist)
+    local data = {}
+
+    local target = MAINDECK_POSITION
+    local targetLookup = {
+        Deck = MAINDECK_POSITION,
+        Sideboard = SIDEBOARD_POSITION,
+        Commander = COMMANDER_POSITION,
+        Companion = COMPANION_POSITION
+    }
+    local Companion = nil
+
+    for line in magiclines(decklist) do
+
+        local card = {}
+        local skip = false
+        local patternFound = false
+
+        card.target = target
+
+        for pattern, decoder in pairs(PATTERN_DECODER) do
+            if (line:match(pattern)) then
+                decoder(line, card)
+                patternFound = true
+                break
+            end
+        end
+
+        if not patternFound then
+            -- if the line specifies a position, we take it. if not we default to the sideboard
+            -- this is because a lot of formats simply use an empty line to signify the sideboard
+            target = targetLookup[line:gsub("%s+", "")] or SIDEBOARD_POSITION
+            skip = true
+        end
+
+        if skip then
+            print "skipped"
+            skip = false
+        else
+            -- Names of split cards like "Fire//Ice" mess up the scryfall search.
+            -- Luckily, the name of each part of the card must be unique aswell, so searching for just "Fire" will yield the same card.
+            if card.name ~= nil then card.name = card.name:gsub("/.*","") end
+
+            -- and we have to do some stuff with the set aswell, which i have bundled
+            if card.set ~= nil then card.set = ammendSetName(card.set) end
+
+            table.insert(data, card)
+        end
+
+    end
+
+    return data
+end
+
+function adjustTarget()
+    -- if the line specifies a position, we take it. if not we default to the sideboard
+    -- this is because a lot of formats simply use an empty line to signify the sideboard
+    target = targetLookup[line:gsub("%s+", "")] or SIDEBOARD_POSITION
+    skip = true
+end
+
+function ammendSetName(set)
+    set = string.lower(set)
+    -- MTGA uses DAR as a code for DOM. This is likely because Dominaria was the first set on arena and DAR might signify "Dominaria Arena"
+    -- Some sites use DAR aswell so this might need to
+    if set == "dar" then set = "dom" end
+    -- some sites use [1E, 2E ...] instead of [1ED, 2ED, ...] but scryfall doesn't liek that so we add the d
+    if set ~= nil and set:match("%de$") then
+        set = set.."d"
+    end
+
+    return set
+end
