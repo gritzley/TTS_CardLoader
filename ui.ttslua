@@ -41,7 +41,7 @@ function openPopup(color)
 end
 
 function importDeckFromPopup()
-    local data = createAPISearchData(POPUP_VALUE)
+    local data = decodeCardData(POPUP_VALUE)
     createCardsFromData(data)
     closePopup()
 end

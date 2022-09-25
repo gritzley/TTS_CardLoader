@@ -1,16 +1,8 @@
 -- this is called on player action
-function handleContextMenu(player, action, targets)
-    -- action 13 is select. since rightclicking an object selects it, this means that this will always have been performed at some point before the context menu opens
-    if (action == 13) then
-        for _, obj in pairs(targets) do
-            obj.clearContextMenu()
-            local actions = CONTEXTMENU_LOOKUP[obj.type]
-            if actions ~= nil then
-                for name, action in pairs(actions) do
-                    obj.addContextMenuItem(name, function() action(obj, player) end, false)
-                end
-            end
-        end
+function handleContextMenu(player, targets)
+    for _, obj in pairs(targets) do
+        obj.clearContextMenu()
+        contextMenuLookup[obj.type](obj, player)
     end
 end
 
@@ -23,25 +15,44 @@ DEBUG_SLEEVE_URL = "https://cdn11.bigcommerce.com/s-bbfhow7rlv/images/stencil/12
 --          //code
 --      end
 --  }
-CONTEXTMENU_LOOKUP = {
-    ["Card"] = {
-        ["Sleeve"] = function(card, player)
-            changeCardSleeve(card, getPlayerData(player, "sleeve") or CARD_BACK_URL)
-        end,
-        ["Scale"] = function(card, player)
-            card.setScale(CARD_SCALE or {1,1,1})
-        end
-    },
-    ["Deck"] = {
-        ["Sleeve"] = function(deck, player)
-            changeDeckSleeves(deck, getPlayerData(player, "sleeve") or CARD_BACK_URL)
-        end,
-        ["Scale"] = function(deck, player)
-            for _, _ in pairs(deck.getObjects()) do
-                -- take top card and change scale
-                local card = deck.takeObject({index = 1})
+contextMenuLookup = {
+    ["Card"] =
+        function(card, player)
+            card.addContextMenuItem("Sleeve", function()
+                changeCardSleeve(card, getPlayerData(player, "sleeve") or CARD_BACK_URL)
+            end, false)
+            card.addContextMenuItem("Scale", function()
+
                 card.setScale(CARD_SCALE or {1,1,1})
+            end, false)
+
+            local gmData = JSON.decode(card.getGMNotes())
+            if gmData ~= nil and gmData.backface ~= nil then
+                gmData = JSON.decode(card.getGMNotes())
+                card.addContextMenuItem("Flip", function()
+                    local tmp = card.getCustomObject()
+                    card.setCustomObject({
+                        face = gmData.backface,
+                        back = tmp.back
+                    })
+                    gmData.backface = tmp.face
+                end, false)
+                card.setGMNotes(JSON.encode(gmData))
             end
+
+
+        end,
+    ["Deck"] =
+        function(deck, player)
+            deck.addContextMenuItem("Sleeve", function()
+                changeDeckSleeves(deck, getPlayerData(player, "sleeve") or CARD_BACK_URL)
+            end, false)
+            deck.addContextMenuItem("Scale", function()
+                for _, _ in pairs(deck.getObjects()) do
+                    -- take top card and change scale
+                    local card = deck.takeObject({index = 1})
+                    card.setScale(CARD_SCALE or {1,1,1})
+                end
+            end, false)
         end
-    }
 }

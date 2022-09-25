@@ -3,11 +3,12 @@
 SET_ID_PATTERN = "(%w%w%w*)"
 COLLECTOR_ID_PATTERN = "(%d%d?%d?)"
 CARDNAME_PATTERN = "([%w%s%p'\"%+%_/]+)"
-SIMPLE_PATTERN = "(%d+)%s"..CARDNAME_PATTERN
-MTGA_STRING_PATTERN = SIMPLE_PATTERN.."%("..SET_ID_PATTERN.."%)%s"
-MTGA_STRING_PATTERN_EXACT = MTGA_STRING_PATTERN..COLLECTOR_ID_PATTERN
-MTGO_STRING_PATTERN = SIMPLE_PATTERN.."%s%["..SET_ID_PATTERN.."%]"
-MTGO_STRING_PATTERN_EXACT = SIMPLE_PATTERN.."%s<"..COLLECTOR_ID_PATTERN..">%s%["..SET_ID_PATTERN.."%]"
+SIMPLE_PATTERN = "^(%d+)%s"..CARDNAME_PATTERN
+MTGA_STRING_PATTERN = "^"..SIMPLE_PATTERN.."%("..SET_ID_PATTERN.."%)%s"
+MTGA_STRING_PATTERN_EXACT = "^"..MTGA_STRING_PATTERN..COLLECTOR_ID_PATTERN
+MTGO_STRING_PATTERN = "^"..SIMPLE_PATTERN.."%s%["..SET_ID_PATTERN.."%]"
+MTGO_STRING_PATTERN_EXACT = "^"..SIMPLE_PATTERN.."%s<"..COLLECTOR_ID_PATTERN..">%s%["..SET_ID_PATTERN.."%]"
+EXACT_SET_PATTERN = "^"..SET_ID_PATTERN.."%s"..COLLECTOR_ID_PATTERN
 
 PATTERN_DECODER[MTGO_STRING_PATTERN_EXACT] = function (line, card)
     -- e.G. 3 Island <251> [THB]
@@ -53,4 +54,61 @@ PATTERN_DECODER[SIMPLE_PATTERN] = function (line, card)
     -- e.G. 4 Forest
     -- if you don't care about printings, this can easily spawn stuff
     _, _, card.amount, card.name = line:find(SIMPLE_PATTERN)
+end
+
+PATTERN_DECODER[EXACT_SET_PATTERN] = function (line, card)
+    -- e.G. sld257 - this is a full text mountain
+    -- if oyu know the exact set and collector id and are in a hurry
+    card.amount = 1
+    _, _, card.set, card.collector_number = line:find(EXACT_SET_PATTERN)
+end
+
+
+-- decoding tokens
+WebRequest.get("https://api.scryfall.com/catalog/creature-types", function(request) CREATURE_TYPES = JSON.decode(request.text).data end)
+WebRequest.get("https://api.scryfall.com/catalog/artifact-types", function(request) ARTIFACT_TYPES = JSON.decode(request.text).data end)
+WebRequest.get("https://api.scryfall.com/catalog/enchantment-types", function(request) ENCHANTMENT_TYPES = JSON.decode(request.text).data end)
+WebRequest.get("https://api.scryfall.com/catalog/keyword-abilities", function(request) KEYWORD_ABILITIES = JSON.decode(request.text).data end)
+WebRequest.get("https://api.scryfall.com/catalog/keyword-abilities", function(request) KEYWORD_ABILITIES = JSON.decode(request.text).data end)
+COLORS = {
+    ["w"] = "white",
+    ["u"] = "blue",
+    ["b"] = "black",
+    ["r"] = "red",
+    ["g"] = "green",
+    ["c"] = "colorless"
+}
+
+function token_decoder(string)
+
+    string = " "..string:lower().." "
+
+    local power, toughness = string:match("(%d)%/(%d)")
+
+    local types = ""
+    local query = ""
+    local keywords = ""
+    local colors = ""
+    local query = ""
+
+    for i,v in ipairs(CREATURE_TYPES) do if string:find("%s"..v:lower().."%s") then types = types.."t:"..v.." " end end
+    for i,v in ipairs(ARTIFACT_TYPES) do if string:find("%s"..v:lower().."%s") then types = types.."t:"..v.." " end end
+    for i,v in ipairs(ENCHANTMENT_TYPES) do if string:find("%s"..v:lower().."%s") then types = types.."t:"..v.." " end end
+    for i,v in pairs(COLORS) do
+        if string:find(v) then colors = colors..i end
+    end
+
+    if types == "" then
+        return string.." is:token"
+    end
+    for i,v in ipairs(KEYWORD_ABILITIES) do
+        if string:find(v:lower()) then keywords = keywords.."keyword:"..v.." " end
+    end
+    if keywords == "" then keywords = "is:vanilla " end
+    if not (colors == "") then colors = "id="..colors.." " end
+    if power then power = "power="..power.." " else power = "" end
+    if toughness then toughness = "toughness="..toughness.." " else toughness = "" end
+
+    return types..keywords..colors..power..toughness.." is:token"
+
 end

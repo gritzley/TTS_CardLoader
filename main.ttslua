@@ -13,21 +13,11 @@ function onLoad()
 end
 
 function onPlayerAction(player, action, targets)
-    handleContextMenu(player, action, targets)
+    -- action 13 is select. since rightclicking an object selects it, this means
+    -- that this will always have been performed at some point before the context menu opens
+    if (action == 13) then handleContextMenu(player, targets) end
 end
 
 function onChat(message, player)
     if tryExecuteCommand(message, player) then return false end
-end
-
-function onLoad(state_string)
-    local state = JSON.decode(state_string) or {}
-    -- loadPlayerDataFromState(state)
-    buildUI();
-end
-
-function onSave()
-    local state = {}
-    state = savePlayerDataToState(state)
-    return JSON.encode(state)
 end

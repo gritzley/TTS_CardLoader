@@ -2,15 +2,17 @@ COMMAND.import = function (_, player)
     openPopup(player.color)
 end
 
-COMMAND.booster = function (set, _)
-    if math.random() < 0.1 then createRandomCard("s:"..set.."%20r:mythic")
-    else createRandomCard("s:"..set.."%20r:rare") end
+COMMAND.booster = function (set, player)
+    local pos = player.getPointerPosition()
+    if math.random() < 0.1 then createRandomCard("s:"..set.."%20r:mythic", pos)
+    else createRandomCard("s:"..set.."%20r:rare", pos) end
 
-    for i=1,3 do createRandomCard("s:"..set.."%20r:uncommon") end
-    for i=1,10 do createRandomCard("s:"..set.."%20r:common") end
+    for i=1,3 do createRandomCard("s:"..set.."%20r:uncommon", pos) end
+    for i=1,10 do createRandomCard("s:"..set.."%20r:common", pos) end
 end
 
-COMMAND.random = function (query, _)
+COMMAND.random = function (query, player)
+    local pos = player.getPointerPosition()
     if query:match("-a") then
         query = query:gsub("-a", "")
         local alchemy = true
@@ -19,18 +21,47 @@ COMMAND.random = function (query, _)
         local alchemy = true
     end
     query = query:gsub("%s", "%%20")
-    createRandomCard(query, alchemy, true)
+    createRandomCard(query, pos, true)
 end
+COMMAND.r = COMMAND.random
 
-COMMAND.spawn = function (cardstring, _)
-    local data = createAPISearchData(cardstring)
-    createCardsFromData(data, true)
+COMMAND.spawn = function (cardstring, player)
+    local pos = player.getPointerPosition()
+    local data = decodeCardData(cardstring)
+    createCardsFromData(data, true, pos)
 end
+COMMAND.s = COMMAND.spawn
 
 COMMAND.setSleeve = function (url, player)
+    print(player)
     setPlayerData(player, "sleeve", url)
 end
 
-COMMAND.setScale = function (scale, _)
+COMMAND.setScale = function (scale)
     CARD_SCALE = {scale, scale, scale}
 end
+
+COMMAND.boosterModel = function ()
+    local modelData = {
+        type = "Custom_Model",
+    }
+
+    local model = spawnObject(modelData)
+
+    model.setCustomObject({
+        mesh = "https://drive.google.com/file/d/1sUoY_0Hm71Ja2oxJIsO1Hc7ncSLPxFbJ/view?usp=sharing",
+        type = 6
+    })
+end
+
+COMMAND.token = function (token_string, player)
+    local query = token_decoder(token_string)
+    createRandomCard(query, player.getPointerPosition(), true)
+end
+
+COMMAND.query = function(query)
+    createCardsFromQuery(query, faceup)
+end
+
+COMMAND.enableAlchemy = function() alchemyEnabled = true end
+COMMAND.disableAlchemy = function() alchemyEnabled = false end

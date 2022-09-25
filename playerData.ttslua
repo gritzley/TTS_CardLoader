@@ -11,12 +11,3 @@ function getPlayerData(player, name)
 
     return PLAYERDATA[player.steam_name][name]
 end
-
-function savePlayerDataToState(state)
-    state.playerdata = PLAYERDATA
-    return state
-end
-
-function loadPlayerDataFromState(state)
-    PLAYERDATA = state.playerdata or {}
-end

@@ -54,12 +54,30 @@ Currently, there is only one import window for all players so typing this comman
 
 Spawn a single card as defined in the cardstring. This cardstring must adhere to one of these formats:
 
-- Simple: **Amount Cardname** *e.G. $spawn 1 Luminarch Aspirant*
-- MTGA: **Amount Cardname (SetID) CollectorID** *e.G. $spawn 15 Plains (THB) 250*
-- MTGO: **Amount Cardname [SetID]** *e.G. $spawn The Meathook Massacre [MID]*
-- MTGO(exact): **Amount Cardname <CollectorID> [SetID]** *e.G. $spawn 3 Swamp <252> [THB]*
+|             | Format                                  | Example                              |
+|-------------|-----------------------------------------|--------------------------------------|
+| Simple      | `Amount Cardname`                       | `$spawn 1 Luminarch Aspirant`        |
+| MTGA        | `Amount Cardname (SetID) CollectorID`   | `$spawn 15 Plains (THB) 250`         |
+| MTGO        | `Amount Cardname [SetID]`               | `$spawn The Meathook Massacre [MID]` |
+| MTGO(exact) | `Amount Cardname <CollectorID> [SetID]` | `$spawn 3 Swamp <252> [THB]`         |
 
 The MTGA and MTGO(exact) Formats are useful for getting specific prinitngs of a card. Both of the examples shown here get the cool Cosmos-Lands from THB.
+
+#### $token [characteristics]
+
+Attempts to spawn a token with all the given characteristics.
+
+Characteristics include keywords, power/toughness, creature type and color. You can put these in any order.
+
+For example: `$token 1/1 Vampire Lifelink` will spawn a 1/1 Vampire with lifelink. If several token match the charecteristics, it will spawn a random one. For example `Vampire lifelink` can produce 5 different tokens. use as many characteristics as you can.
+
+Since tokens don't have unique identifiers, this does not always work as expected.
+My advise is to try this a few times and if it doesn't work, manually get the token from scryfall.
+When searching for tokens on scryfall, don't forget to add `is:token` to your query.
+
+###### Special Tokens
+
+There are some special tokens like "Vecna", "Marit Lage" and the tokens created by the Eternalize ability. For thos etokens, please just use the name like this: `$token Vecna`
 
 #### $random [query]
 
@@ -78,15 +96,29 @@ This sets your current sleeve in the game data to the image at this url. Rightcl
 
 Your current sleeve is not stored between sessions.
 
-### Other Functionalities
+#### $setScale [scale]
 
-Beyond the console commands, this library adds some other functionalities to cards and decks in TTS.
+This will set the scale at which cards are spawned. Setting this to 0.5, for example, will spawn cards at half height and width.
+
+This does not affect cards that are already in play, but you can rightclick any card or deck and select "Scale" to apply the current scale.
+
+Scale is global for all players and does not persist through games.
+
+### Context Menu
+
+This script also adds some extra context menu options:
 
 #### Sleeves
 
-You can rightclick cards and decks and select "Sleeve" to apply your current sleeve to them.
+Apply your current sleeve to a card or deck.
 Use $setSleeve to select a current sleeve first.
+
+#### Scale
+
+Apply the current scale to a card or deck.
+Use $setScale to select a scale first.
 
 #### Dual-Faced Cards.
 
-Dual faced cards will appear with a normal card back. Press R while hovering over a dual-faced card to switch its face.
+Only appears on modal dual faced cards like the zendikar dual lands.
+Flips the card to the other side

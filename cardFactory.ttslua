@@ -1,11 +1,7 @@
 SCRYFALL_BASE_URL = "https://api.scryfall.com/"
 CARD_BACK_URL = "https://static.wikia.nocookie.net/mtgsalvation_gamepedia/images/f/f8/Magic_card_back.jpg/revision/latest?cb=20140813141013"
 
-function createCardsFromData(data, faceup)
-
-    log "searchdata:"
-    log (data)
-
+function createCardsFromData(data, faceup, position)
     -- if there are more than 75 identifiers in the data, we need to split it into several requets
     if (data[75]) then
         local excessData = {}
@@ -30,13 +26,9 @@ function createCardsFromData(data, faceup)
 
         if requestNotValid(request) then return end
 
-        log "Returned data:"
-        log(JSON.decode(request.text))
-
         -- if there are cards that weren't found, log their data for debug
         local not_found = JSON.decode(request.text).not_found
         if not_found then
-            print "i am here"
             for i, v in ipairs(not_found) do
                 print (JSON.encode(v) .. " not found")
             end
@@ -45,12 +37,35 @@ function createCardsFromData(data, faceup)
         -- spawn all the cards that were found
         local cards = JSON.decode(request.text).data
         for i, value in ipairs(cards) do
-            for j=1, data[i].amount do createCard(value, data[i].target, faceup) end
+            if position == nil then position = data[i].target end
+            for j=1, data[i].amount do createCard(value, position, faceup) end
         end
     end)
 end
 
-function createRandomCard(query, faceup)
+function createCardsFromQuery(query, faceup)
+
+    if not alchemyEnabled then query = "game:paper%20"..query end
+
+    WebRequest.get(SCRYFALL_BASE_URL.."cards/search?q="..query, function(request)
+
+        -- if requestNotValid(request) then return end
+
+        -- local data = JSON.decode(request.text)
+        --
+        -- if data.total_cards > 100 then
+        --     print("found more than 100 cards matching that query. please limit your search")
+        --     return
+        -- end
+        --
+        -- print (data.total_cards)
+        -- for i, value in ipairs(data.data) do
+        --     createCard(value, {0,0,0}, faceup)
+        -- end
+    end)
+end
+
+function createRandomCard(query, position, faceup)
 
     if not alchemyEnabled then query = "game:paper%20"..query end
 
@@ -60,11 +75,11 @@ function createRandomCard(query, faceup)
 
         local card = JSON.decode(request.text)
 
-        if card.code == "Not_found" then
+        if card.code == "not_found" then
             print("No card matching the query could be found")
             return
         end
-        createCard(card, MAINDECK_POSITION, faceup)
+        createCard(card, position, faceup)
     end)
 end
 
@@ -98,20 +113,4 @@ function createCard(data, target, faceup)
     end
 
     card.setName(data.name)
-end
-
-function tryObjectRandomize(object)
-    local gmData = JSON.decode(object.getGMNotes())
-    if gmData == nil then return end
-
-    if gmData.backface ~= nil then
-        local tmp = object.getCustomObject()
-        object.setCustomObject({
-            face = gmData.backface,
-            back = tmp.back
-        })
-        gmData.backface = tmp.face
-    end
-
-    object.setGMNotes(JSON.encode(gmData))
 end
