@@ -17,7 +17,7 @@ COMMAND.random = function (query, player)
         query = query:gsub("-a", "")
         local alchemy = true
     end
-    if query:match("alchemy") then
+    if query:match("--alchemy") then
         local alchemy = true
     end
     query = query:gsub("%s", "%%20")
