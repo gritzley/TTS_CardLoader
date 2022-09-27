@@ -61,6 +61,15 @@ function createRandomCard(query, position, faceup)
     end)
 end
 
+function createCardFromURL(url, position, faceup)
+    WebRequest.get(url, function(request)
+        if requestNotValid(request) then return end
+
+        local card = JSON.decode(request.text)
+        createCard(card, position, faceup)
+    end)
+end
+
 function createCard(data, target, faceup)
 
     local cardData = {
@@ -70,6 +79,8 @@ function createCard(data, target, faceup)
         rotation = {0, 180, 180},
         scale = CARD_SCALE or {1, 1, 1}
     }
+
+    local gmNotes = {}
 
     if faceup then cardData.rotation[3] = 0 end
     local card = spawnObject(cardData)
@@ -85,10 +96,17 @@ function createCard(data, target, faceup)
             back = CARD_BACK_URL
         })
 
-        card.setGMNotes(JSON.encode({
-            backface = data.card_faces[2].image_uris.large
-        }))
+        gmNotes.backface = data.card_faces[2].image_uris.large
     end
 
+    if data.layout ~= "token" then
+        gmNotes.tokens = {}
+        for i,v in pairs(data.all_parts) do
+            if v.component == "token" then
+                table.insert(gmNotes.tokens, v)
+            end
+        end
+    end
+    card.setGMNotes(JSON.encode(gmNotes))
     card.setName(data.name)
 end
