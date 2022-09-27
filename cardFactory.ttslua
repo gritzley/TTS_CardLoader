@@ -43,28 +43,6 @@ function createCardsFromData(data, faceup, position)
     end)
 end
 
-function createCardsFromQuery(query, faceup)
-
-    if not alchemyEnabled then query = "game:paper%20"..query end
-
-    WebRequest.get(SCRYFALL_BASE_URL.."cards/search?q="..query, function(request)
-
-        -- if requestNotValid(request) then return end
-
-        -- local data = JSON.decode(request.text)
-        --
-        -- if data.total_cards > 100 then
-        --     print("found more than 100 cards matching that query. please limit your search")
-        --     return
-        -- end
-        --
-        -- print (data.total_cards)
-        -- for i, value in ipairs(data.data) do
-        --     createCard(value, {0,0,0}, faceup)
-        -- end
-    end)
-end
-
 function createRandomCard(query, position, faceup)
 
     if not alchemyEnabled then query = "game:paper%20"..query end
