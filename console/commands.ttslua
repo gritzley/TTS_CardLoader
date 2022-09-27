@@ -56,8 +56,10 @@ end
 
 COMMAND.token = function (token_string, player)
     local query = token_decoder(token_string)
+    query = query:gsub("%s", "%%20")
     createRandomCard(query, player.getPointerPosition(), true)
 end
+COMMAND.t = COMMAND.token
 
 COMMAND.query = function(query)
     createCardsFromQuery(query, faceup)
