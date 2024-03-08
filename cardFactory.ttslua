@@ -101,9 +101,11 @@ function createCard(data, target, faceup)
 
     if data.layout ~= "token" then
         gmNotes.tokens = {}
+    if (data.all_parts) then
         for i,v in pairs(data.all_parts) do
-            if v.component == "token" then
-                table.insert(gmNotes.tokens, v)
+                if v.component == "token" then
+                    table.insert(gmNotes.tokens, v)
+                end
             end
         end
     end
